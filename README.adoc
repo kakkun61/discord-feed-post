@@ -1,0 +1,26 @@
+= discord-feed-post
+
+This is a tool that reads a feet from *stdin* and post its entries to *Discord*.
+
+== Settings
+
+Config file should be put at _{XDG Config Home}/discord-feed-post/config.yaml_.
+
+.~/.config/discord-feed-post/config.yaml
+----
+hatenablog://blog/12704346814673868829: https://discord.com/api/webhooks/{webhook.id}/{webhook.token}
+----
+
+Its keys are IDs of feeds.
+
+[,xml]
+----
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="ja">
+  …
+  <id>hatenablog://blog/12704346814673868829</id>
+  …
+----
+
+:discord-webhook: https://discord.com/developers/docs/resources/webhook#execute-webhook
+
+And its values are {discord-webhook}[Discord webhook URIs].
