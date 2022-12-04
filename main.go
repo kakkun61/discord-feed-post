@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/mmcdole/gofeed"
@@ -24,9 +25,13 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Errorf("Failed to parse a feed. Caused by %w", err))
 	}
-	webhookUrl, ok := (*config)[feed.Link]
+	link := feed.FeedLink
+	if link == "" {
+		link = feed.Link
+	}
+	webhookUrl, ok := (*config)[link]
 	if !ok {
-		log.Fatal(fmt.Errorf("Not found a webhook URI: %s.", feed.Link))
+		log.Fatal(fmt.Errorf("Not found a webhook URI for: %s.", link))
 	}
 	requestBodyBytes, err := json.Marshal(convertFeedToDiscordRequest(feed))
 	if !ok {
@@ -109,11 +114,11 @@ type DiscordRequestBody struct {
 }
 
 type DiscordRequestEmbed struct {
-	Title       string        `json:"title"`
-	Description string        `json:"description"`
-	Url         string        `json:"url"`
-	Timestamp   string        `json:"timestamp"` // ISO 8601
-	Author      DiscordAuthor `json:"author"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Url         string         `json:"url"`
+	Timestamp   string         `json:"timestamp"` // ISO 8601
+	Author      *DiscordAuthor `json:"author,omitempty"`
 }
 
 type DiscordAuthor struct {
@@ -129,10 +134,26 @@ func convertFeedToDiscordRequest(feed gofeed.Feed) DiscordRequestBody {
 		embed := &(body.Embeds[i])
 		item := feed.Items[len(body.Embeds)-1-i]
 		embed.Title = item.Title
-		embed.Description = item.Description
+		descriptionRunes := []rune(item.Description)
+		if len(descriptionRunes) <= 500 {
+			// ドキュメントによると2000文字までいけるはずなんだけどな
+			// https://discord.com/developers/docs/resources/webhook#execute-webhook-jsonform-params
+			// もしかすると「\u003e」とかが6文字扱い？？
+			embed.Description = item.Description
+		} else {
+			embed.Description = string(append([]rune(item.Description)[:499], '…'))
+		}
 		embed.Url = item.Link
-		embed.Timestamp = string(item.Published)
-		embed.Author.Name = item.Author.Name
+		embed.Timestamp = item.PublishedParsed.Format(time.RFC3339)
+		if 0 < len(item.Authors) {
+			var author DiscordAuthor
+			author.Name = item.Authors[0].Name
+			embed.Author = &author
+		} else if 0 < len(feed.Authors) {
+			var author DiscordAuthor
+			author.Name = feed.Authors[0].Name
+			embed.Author = &author
+		}
 	}
 	return body
 }
